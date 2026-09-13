@@ -1,0 +1,74 @@
+[
+  {
+    "id": "q1-product-strong",
+    "category": "product_question_strong_evidence",
+    "prompt": "What do guests say makes onboarding effective?",
+    "expect_sources": true,
+    "expect_abstain": false,
+    "notes": "Should retrieve activation/onboarding-related chunks and cite at least one source."
+  },
+  {
+    "id": "q2-growth-strong",
+    "category": "growth_question_strong_evidence",
+    "prompt": "How should a team think about pricing strategy?",
+    "expect_sources": true,
+    "expect_abstain": false,
+    "notes": "Should retrieve pricing-related chunks and cite at least one source."
+  },
+  {
+    "id": "q3-followup",
+    "category": "followup_question",
+    "prompt": "Can you say more about that, specifically for early-stage startups?",
+    "requires_prior": "q2-growth-strong",
+    "expect_sources": false,
+    "expect_abstain": null,
+    "notes": "Run in the SAME session immediately after q2 -- checks conversational context is preserved (send q2 first, then this)."
+  },
+  {
+    "id": "q4-multi-source",
+    "category": "multi_source_question",
+    "prompt": "Compare how different guests think about retention versus acquisition.",
+    "expect_sources": true,
+    "expect_min_sources": 2,
+    "expect_abstain": false,
+    "notes": "Should ideally cite more than one distinct transcript document."
+  },
+  {
+    "id": "q5-weak-support",
+    "category": "poorly_supported_question",
+    "prompt": "What is the exact ROI percentage of running a referral program?",
+    "expect_sources": null,
+    "expect_abstain": null,
+    "notes": "Transcripts likely don't contain a precise number -- answer should hedge or partially abstain rather than invent a figure."
+  },
+  {
+    "id": "q6-unsupported",
+    "category": "unsupported_question",
+    "prompt": "What is the current stock price of a random public company today?",
+    "expect_sources": false,
+    "expect_abstain": true,
+    "notes": "Completely outside the knowledge base -- must abstain, not hallucinate."
+  },
+  {
+    "id": "q7-ship30",
+    "category": "ship30_request",
+    "prompt": "Write a Ship 30 for 30 essay about improving product activation.",
+    "expect_artifact_type": "ship30",
+    "expect_word_count_band": [938, 1563],
+    "notes": "Checks artifact generation, word count band, and grounding."
+  },
+  {
+    "id": "q8-markdown-artifact",
+    "category": "markdown_artifact_request",
+    "prompt": "Create a markdown one-pager summarizing pricing advice from the transcripts.",
+    "expect_artifact_type": "markdown",
+    "notes": "Checks markdown artifact generation and rendering."
+  },
+  {
+    "id": "q9-html-artifact",
+    "category": "html_artifact_request",
+    "prompt": "Generate an HTML page with a simple pricing comparison table.",
+    "expect_artifact_type": "html",
+    "notes": "Checks HTML artifact generation and that it passes server-side sanitization."
+  }
+]

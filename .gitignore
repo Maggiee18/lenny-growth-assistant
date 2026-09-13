@@ -1,0 +1,34 @@
+# --- Secrets ---
+.env
+*.env.local
+
+# --- Python ---
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Node / Next.js ---
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/coverage/
+*.tsbuildinfo
+
+# --- Transcript data (see data/transcripts/README.md) ---
+# The official Lenny's Newsletter data-repo license permits personal,
+# non-commercial use but forbids redistributing the raw dataset files, so
+# fetched real transcripts never get committed. The fictional sample dataset
+# under sample_synthetic/ IS committed (it's original content).
+data/transcripts/lennys_podcast/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Logs ---
+*.log
