@@ -64,7 +64,8 @@ def _valid_essay_markdown() -> str:
             "## Takeaway",
             "Audit your activation funnel this week and fix the worst single step.",
         ]
-        * 6  # pad toward ~1250 words for structural validation
+        * 20  # comfortably above the 850-word continuation trigger, so this
+        # fixture exercises the "no continuation needed" path
     )
     return body
 
@@ -100,6 +101,30 @@ async def test_generate_ship30_happy_path_returns_result_with_outline_and_markdo
     assert len(result.outline.evidence) == 2
     assert result.word_count > 0
     assert "## " in result.markdown
+
+
+async def test_generate_ship30_triggers_one_continuation_when_draft_is_short():
+    short_draft = "word " * 200  # well under the 850-word continuation trigger
+    continuation_text = "word " * 200
+    provider = _ScriptedProvider([_valid_outline_json(), short_draft, continuation_text])
+    chunks = [_chunk(), _chunk(title="Ep 2")]
+
+    result = await generate_ship30(provider, "growth loops", chunks)
+
+    # Both the original draft's and the continuation's words should be present.
+    assert result.word_count >= 380
+    assert provider._responses == []  # exactly 3 calls consumed: outline, draft, one continuation
+
+
+async def test_generate_ship30_does_not_continue_past_the_trigger_threshold():
+    long_enough_draft = "word " * 900  # already above the 850-word trigger
+    provider = _ScriptedProvider([_valid_outline_json(), long_enough_draft])
+    chunks = [_chunk(), _chunk(title="Ep 2")]
+
+    result = await generate_ship30(provider, "growth loops", chunks)
+
+    assert result.word_count == 900
+    assert provider._responses == []  # only 2 calls: outline + draft, no continuation call queued or consumed
 
 
 def test_word_count_ignores_markdown_punctuation():

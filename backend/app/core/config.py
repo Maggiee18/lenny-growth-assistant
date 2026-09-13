@@ -61,7 +61,11 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_chat_model: str = "llama3.1:8b"
     ollama_embedding_model: str = "nomic-embed-text"
-    ollama_timeout_seconds: float = 90.0
+    # 300s (not the httpx/requests-typical 30-60s) because CPU-only local
+    # inference of a full ~1,250-word Ship 30 essay stage genuinely takes
+    # longer than a short Q&A turn -- found live: the default of 90s cut off
+    # essay generation mid-request on an 8B CPU model (see agent-transcripts).
+    ollama_timeout_seconds: float = 300.0
 
     # --- Anthropic (cloud, optional) ---
     anthropic_api_key: str | None = None

@@ -24,7 +24,10 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:11434 || exit 1"]
+      # The official ollama/ollama image has no curl/wget -- `ollama list`
+      # is the entrypoint binary itself and hits the local server, so it
+      # doubles as a liveness probe without needing an extra tool.
+      test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10

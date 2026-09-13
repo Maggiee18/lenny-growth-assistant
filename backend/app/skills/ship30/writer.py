@@ -34,18 +34,52 @@ If the excerpts do not support a coherent essay topic, return an empty "evidence
 _WRITER_SYSTEM_PROMPT = """You are a Ship 30 for 30 essay writer. Using ONLY the structured outline provided
 (never invent new facts or stories beyond it), write a complete essay in Markdown.
 
-Requirements:
-- Approximately 1250 words.
+LENGTH IS A HARD REQUIREMENT: write at least 1100 words, targeting approximately 1250.
+This is the single most important requirement below -- a short essay is a failed essay.
+Do not wrap up early. If you feel you are close to a conclusion before reaching the target
+length, that means you need to add more: another concrete example, a deeper elaboration of
+one piece of evidence, a counterargument and rebuttal, or an additional practical sub-point.
+Plan for roughly 6-8 substantial paragraphs across your sections, not 4-5 short ones.
+
+Other requirements:
 - Start with the hook, no throat-clearing preamble.
-- Use at least 2 markdown headings (##) to keep it skimmable.
+- Use at least 3 markdown headings (##) to keep it skimmable, each with multiple paragraphs
+  underneath it -- a heading followed by one short paragraph is too thin.
 - Use bullet lists where they aid scanning.
 - Use **bold** selectively for the 2-4 most important phrases, not decoratively.
 - Build a clear narrative: problem/tension -> evidence -> reframe -> practical insight.
 - End with a concrete, specific, useful takeaway the reader can act on this week.
 - Weave in the evidence's source titles naturally (e.g. "As discussed on ...") rather than
   a bare citation list -- this is a personal essay, not a report.
-Return ONLY the markdown essay, no preamble, no code fences.
+
+Return ONLY the markdown essay, no preamble, no code fences. Remember: aim for ~1250 words --
+write the full essay, do not stop short.
 """
+
+_CONTINUATION_PROMPT = """The essay above stops short of the ~1250-word target. Continue writing
+directly from where it left off -- do not repeat the hook, any heading, or any sentence already
+written. Add one or two more substantial paragraphs so the combined essay reaches approximately
+1250 words.
+
+GROUNDING RULE STILL APPLIES: do not introduce any new company, person, product, or anecdote that
+is not already in the outline or the essay so far (e.g. do not reach for a famous unrelated example
+like Airbnb, Uber, Netflix, etc. just to fill space). Add length by going deeper on the SAME
+evidence already used -- more analysis, a counterargument to it, a sharper explanation of its
+implication -- never by bringing in a new illustrative story of your own.
+
+Return ONLY the new markdown to append (no repetition of prior content, no preamble, no code fences).
+"""
+
+# Word count below which we trigger one bounded continuation pass rather than
+# accepting a short draft outright. Kept below the 938-word floor of the
+# target band (see validator.py) so a draft that's merely a little short
+# still gets accepted without the extra latency of a second CPU generation
+# call -- continuation only fires when the shortfall is large enough to be
+# worth ~another full generation's worth of time.
+_CONTINUATION_TRIGGER_WORDS = 850
+# Continuation is attempted exactly once per essay, never looped, so a model
+# that keeps writing short is a bounded ~2x latency cost, not unbounded.
+_MAX_CONTINUATION_ATTEMPTS = 1
 
 
 def _format_excerpts(chunks: list[RetrievedChunk]) -> str:
@@ -108,9 +142,25 @@ async def generate_ship30(
         ChatMessage(role="system", content=_WRITER_SYSTEM_PROMPT),
         ChatMessage(role="user", content=f"Outline JSON:\n{outline.model_dump_json(indent=2)}"),
     ]
-    draft = await provider.chat(writer_messages, temperature=0.6, max_tokens=2600)
+    draft = await provider.chat(writer_messages, temperature=0.6, max_tokens=3200)
     markdown = draft.content.strip()
     markdown = re.sub(r"^```(?:markdown)?|```$", "", markdown, flags=re.MULTILINE).strip()
+
+    for attempt in range(_MAX_CONTINUATION_ATTEMPTS):
+        current_words = word_count(markdown)
+        if current_words >= _CONTINUATION_TRIGGER_WORDS:
+            break
+        logger.info("ship30_continuation_triggered", attempt=attempt + 1, word_count=current_words)
+        continuation_messages = [
+            *writer_messages,
+            ChatMessage(role="assistant", content=markdown),
+            ChatMessage(role="user", content=_CONTINUATION_PROMPT),
+        ]
+        continuation = await provider.chat(continuation_messages, temperature=0.6, max_tokens=1600)
+        addition = continuation.content.strip()
+        addition = re.sub(r"^```(?:markdown)?|```$", "", addition, flags=re.MULTILINE).strip()
+        if addition:
+            markdown = f"{markdown}\n\n{addition}"
 
     warnings = validate_structure(markdown)
     title = outline.central_insight.strip() or topic

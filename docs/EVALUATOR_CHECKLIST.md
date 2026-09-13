@@ -67,17 +67,17 @@ Every assignment requirement, mapped to where it's implemented. Section numbers 
 
 | # | Deliverable | Status |
 |---|---|---|
-| 1 | Public GitHub repository | **Local commit created; not yet pushed to a public remote** — see submission checklist below |
+| 1 | Public GitHub repository | Pushed: [github.com/Maggiee18/lenny-growth-assistant](https://github.com/Maggiee18/lenny-growth-assistant) |
 | 2 | README.md | [README.md](../README.md) |
 | 3 | PRD | [PRD.md](../PRD.md) |
 | 4 | design.md | [design.md](../design.md) |
 | 5 | architecture.md | [architecture.md](../architecture.md) |
-| 6 | Agent transcripts | [agent-transcripts/](../agent-transcripts/) (8 logs, failures included) |
-| 7 | Tests + manual UI test plan | [backend/tests/](../backend/tests/) (83 tests), [frontend/tests/](../frontend/tests/) (11 tests), [design.md § Manual UI test plan](../design.md#manual-ui-test-plan) |
-| 8 | Demo video | **Not recorded** — script provided in [docs/DEMO_SCRIPT.md](DEMO_SCRIPT.md); recording requires a camera and the live app, which this session cannot do on your behalf |
+| 6 | Agent transcripts | [agent-transcripts/](../agent-transcripts/) (9 logs, failures included — including a full live Docker/Ollama debugging session in `009-live-docker-verification.md`) |
+| 7 | Tests + manual UI test plan | [backend/tests/](../backend/tests/) (85 tests), [frontend/tests/](../frontend/tests/) (11 tests), [design.md § Manual UI test plan](../design.md#manual-ui-test-plan) |
+| 8 | Demo video | **Not recorded** — script provided in [docs/DEMO_SCRIPT.md](DEMO_SCRIPT.md); recording requires a camera, which this session cannot do on your behalf |
 
 ## What has and hasn't been executed (be precise about this)
 
-**Executed and verified in this session:** all backend tests (83/83, SQLite), Alembic migration compiled offline to valid Postgres DDL, live FastAPI process exercised via `curl` end-to-end including a live-discovered-and-fixed resilience bug, frontend `tsc`/Vitest/`next build`.
+**Executed and verified live, for real, on the real stack:** `docker compose up --build` (all 4 services healthy), real Postgres+pgvector (the Alembic migration ran against it and real `cosine_distance` vector queries executed), real Ollama (`llama3.1:8b` + `nomic-embed-text` pulled and used), real ingestion (26 documents / 1,455 chunks, zero errors, from the actual official Lenny's Newsletter transcript repo), a real grounded Q&A turn citing 3 real episodes with real excerpts, a real follow-up question preserving session context, and a real Ship 30 essay landing inside the target word-count band after live iteration. This live run found and fixed 5 real bugs the SQLite test suite couldn't catch — full account in `agent-transcripts/009-live-docker-verification.md`. Also: all 85 backend tests (SQLite), frontend `tsc`/Vitest/`next build`.
 
-**Not executed in this session** (no Docker/Postgres/Ollama in the dev sandbox — see README § Known limitations): `docker compose up --build` itself, real pgvector ANN queries at scale, real Ollama/Anthropic model output quality, the `eval/run_eval.py` harness against real inference. **Run these on your machine before trusting the "it works" claim for those specific pieces** — everything else in this checklist has direct evidence linked above.
+**Not executed this session:** the full `eval/run_eval.py` 9-category harness against real inference (only 2 ad-hoc live questions plus 3 Ship 30 attempts were run manually — a full harness pass would give a more complete picture); real Anthropic/cloud provider output (only Ollama was tested live, `ANTHROPIC_API_KEY` was left unset); the demo video recording. **One real, unresolved caveat from the live run**: a Ship 30 continuation pass was observed introducing one ungrounded anecdote before the prompt was tightened to forbid it — that fix was deployed but not re-verified with a fourth live generation. See README § Known limitations and PRD.md § Risks for the honest framing.

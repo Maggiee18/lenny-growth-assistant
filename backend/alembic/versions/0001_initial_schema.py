@@ -31,8 +31,8 @@ def upgrade() -> None:
         sa.Column("user_id", sa.String(255), nullable=True),
         sa.Column("title", sa.String(500), nullable=False, server_default="New chat"),
         sa.Column("provider", sa.String(50), nullable=False, server_default="ollama"),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )
     op.create_index("ix_sessions_user_id", "sessions", ["user_id"])
 
@@ -48,7 +48,7 @@ def upgrade() -> None:
         sa.Column("role", sa.String(20), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("message_metadata", postgresql.JSONB(), nullable=False, server_default="{}"),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )
     op.create_index("ix_messages_session_id", "messages", ["session_id"])
     op.create_index("ix_messages_created_at", "messages", ["created_at"])
@@ -59,10 +59,10 @@ def upgrade() -> None:
         sa.Column("title", sa.String(500), nullable=False),
         sa.Column("episode", sa.String(255), nullable=True),
         sa.Column("source_url", sa.String(1000), nullable=True),
-        sa.Column("published_at", sa.DateTime(), nullable=True),
+        sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("content_hash", sa.String(64), nullable=False),
         sa.Column("doc_metadata", postgresql.JSONB(), nullable=False, server_default="{}"),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.UniqueConstraint("content_hash", name="uq_transcript_documents_content_hash"),
     )
     op.create_index("ix_transcript_documents_content_hash", "transcript_documents", ["content_hash"])
@@ -80,7 +80,7 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("embedding", Vector(EMBEDDING_DIM), nullable=True),
         sa.Column("chunk_metadata", postgresql.JSONB(), nullable=False, server_default="{}"),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.UniqueConstraint("document_id", "chunk_index", name="uq_chunk_document_index"),
     )
     op.create_index("ix_transcript_chunks_document_id", "transcript_chunks", ["document_id"])
@@ -108,7 +108,7 @@ def upgrade() -> None:
         sa.Column("title", sa.String(500), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("artifact_metadata", postgresql.JSONB(), nullable=False, server_default="{}"),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )
 
 
