@@ -2,7 +2,7 @@
 
 A full-stack, grounded conversational assistant over Lenny's Podcast / Newsletter transcripts. Ask product and growth questions, get answers with cited transcript sources, generate a Ship 30 for 30-style essay, and produce Markdown or HTML artifacts that render live next to the chat.
 
-Built for a Forward Deployed Engineer take-home assignment — see [PRD.md](PRD.md), [architecture.md](architecture.md), and [design.md](design.md) for the discovery brief, system design, and UX rationale.
+Built for a Forward Deployed Engineer take-home assignment — see [PRD.md](PRD.md), [architecture.md](architecture.md), and [design.md](design.md) for the discovery brief, system design, and UX rationale. For evaluators: [docs/EVALUATOR_CHECKLIST.md](docs/EVALUATOR_CHECKLIST.md) maps every requirement to its implementation; [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) and [docs/SUBMISSION_CHECKLIST.md](docs/SUBMISSION_CHECKLIST.md) cover the demo video and submission steps.
 
 ## Contents
 
