@@ -61,11 +61,11 @@ export function ArtifactViewer({
 
   if (!artifact) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-slate-400">
-        <div className="text-4xl" aria-hidden>
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-slate-400">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-2xl" aria-hidden>
           📄
         </div>
-        <p className="text-sm">Artifacts you generate will appear here.</p>
+        <p className="text-sm text-slate-500">Artifacts you generate will appear here.</p>
         <p className="max-w-xs text-xs text-slate-400">
           Ask for a Ship 30 essay, a Markdown summary, or an HTML page and it will render alongside the chat.
         </p>
@@ -98,22 +98,22 @@ export function ArtifactViewer({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-slate-800">{artifact.title}</p>
           <p className="text-xs uppercase tracking-wide text-slate-400">{artifact.artifact_type}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <div className="mr-2 flex rounded-md border border-slate-200 p-0.5 text-xs">
+          <div className="mr-2 flex rounded-md border border-slate-200 bg-slate-50 p-0.5 text-xs">
             <button
-              className={`rounded px-2 py-1 ${view === "rendered" ? "bg-brand-600 text-white" : "text-slate-600"}`}
+              className={`rounded px-2 py-1 transition-colors ${view === "rendered" ? "bg-brand-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
               onClick={() => setView("rendered")}
               aria-pressed={view === "rendered"}
             >
               Rendered
             </button>
             <button
-              className={`rounded px-2 py-1 ${view === "source" ? "bg-brand-600 text-white" : "text-slate-600"}`}
+              className={`rounded px-2 py-1 transition-colors ${view === "source" ? "bg-brand-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
               onClick={() => setView("source")}
               aria-pressed={view === "source"}
             >
@@ -122,20 +122,24 @@ export function ArtifactViewer({
           </div>
           <button
             onClick={handleCopy}
-            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+              copied
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
           >
-            {copied ? "Copied" : "Copy"}
+            {copied ? "✓ Copied" : "Copy"}
           </button>
           <button
             onClick={handleDownload}
-            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
           >
             Download
           </button>
           <button
             onClick={onClose}
             aria-label="Close artifact viewer"
-            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
           >
             Close
           </button>

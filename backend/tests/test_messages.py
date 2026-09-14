@@ -74,3 +74,25 @@ async def test_message_persists_role_and_content(client):
     assert detail["messages"][0]["role"] == "user"
     assert detail["messages"][0]["content"] == "hello there"
     assert detail["messages"][1]["role"] == "assistant"
+
+
+async def test_artifact_id_is_recoverable_after_reopening_a_session(client, db_session, fake_embedding_provider):
+    """Regression test: reopening a past session used to lose the link to
+    any artifact it generated -- the frontend had no way to know a message
+    had one, since artifact_id was only ever returned in the original POST
+    response, never persisted onto the message itself."""
+    [query_vector] = await fake_embedding_provider.embed(["Create a markdown one-pager summarizing pricing"])
+    await _seed_document(db_session, embedding=query_vector, title="Pricing Advice")
+
+    session = (await client.post("/api/sessions", json={})).json()
+    post_resp = await client.post(
+        f"/api/sessions/{session['id']}/messages",
+        json={"content": "Create a markdown one-pager summarizing pricing"},
+    )
+    body = post_resp.json()
+    assert body["artifact_id"] is not None
+
+    detail = (await client.get(f"/api/sessions/{session['id']}")).json()
+    assistant_msg = detail["messages"][-1]
+    assert assistant_msg["message_metadata"]["artifact_id"] == body["artifact_id"]
+    assert assistant_msg["message_metadata"]["sources"]  # citations also recoverable on reload

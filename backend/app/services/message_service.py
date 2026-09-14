@@ -73,6 +73,12 @@ async def post_message(
     if result.artifact_type and result.artifact_content:
         artifact = await create_artifact_from_agent_result(db, session.id, assistant_message.id, result)
         artifact_id = artifact.id
+        # Reassign (not mutate in place) so SQLAlchemy's change tracking picks
+        # it up on this JSON column. Without this, reopening a past session
+        # has no way to know a message had an artifact -- the "Open artifact"
+        # button and citation sources would be gone the moment you navigate
+        # away, even though the artifact itself is still saved.
+        assistant_message.message_metadata = {**assistant_metadata, "artifact_id": str(artifact_id)}
 
     await db.commit()
     await db.refresh(user_message)

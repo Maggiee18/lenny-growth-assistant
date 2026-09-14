@@ -14,6 +14,7 @@ Tool boundaries:
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -216,8 +217,6 @@ async def generate_markdown_artifact_tool(
     ]
     result = await provider.chat(messages, temperature=0.4, max_tokens=2000)
     raw = result.content.strip()
-    import re
-
     raw = re.sub(r"^```(?:markdown)?|```$", "", raw, flags=re.MULTILINE).strip()
     validated = validate_markdown(raw)
     title = derive_title(validated, fallback=instructions[:80] or "Markdown artifact")
@@ -246,8 +245,6 @@ async def generate_html_artifact_tool(
     ]
     result = await provider.chat(messages, temperature=0.4, max_tokens=2500)
     raw = result.content.strip()
-    import re
-
     raw = re.sub(r"^```(?:html)?|```$", "", raw, flags=re.MULTILINE).strip()
     sanitized = sanitize_html(raw)
     title = instructions[:80].strip() or "HTML artifact"

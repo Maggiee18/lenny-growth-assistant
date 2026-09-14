@@ -8,6 +8,7 @@ import type {
   MessageOut,
   MessageResponse,
   SessionSummary,
+  SourceCitation,
 } from "@/lib/types";
 import { Sidebar } from "@/components/Sidebar";
 import { Composer } from "@/components/Composer";
@@ -16,6 +17,32 @@ import { ArtifactViewer } from "@/components/ArtifactViewer";
 import { ProviderBadge } from "@/components/ProviderBadge";
 
 type TurnMeta = { sources?: MessageResponse["sources"]; abstained?: boolean; artifactId?: string | null };
+
+// Assistant messages persist their own turn metadata (sources, abstained,
+// artifact_id) server-side, in message_metadata -- see backend
+// message_service.py. Without reconstructing turnMeta from it on load,
+// reopening a past session showed messages with no source citations and no
+// way to reopen an artifact it had generated, even though both were saved.
+function reconstructTurnMeta(messages: MessageOut[]): Record<string, TurnMeta> {
+  const result: Record<string, TurnMeta> = {};
+  for (const m of messages) {
+    if (m.role !== "assistant") continue;
+    const meta = m.message_metadata as {
+      sources?: SourceCitation[];
+      abstained?: boolean;
+      artifact_id?: string | null;
+    };
+    if (!meta) continue;
+    if (meta.sources?.length || meta.abstained !== undefined || meta.artifact_id) {
+      result[m.id] = {
+        sources: meta.sources,
+        abstained: meta.abstained,
+        artifactId: meta.artifact_id ?? null,
+      };
+    }
+  }
+  return result;
+}
 
 export default function Home() {
   const [config, setConfig] = useState<ConfigResponse | null>(null);
@@ -72,7 +99,7 @@ export default function Home() {
       .getSession(activeSessionId)
       .then((detail) => {
         setMessages(detail.messages);
-        setTurnMeta({});
+        setTurnMeta(reconstructTurnMeta(detail.messages));
       })
       .catch((err) => setSendError((err as Error).message))
       .finally(() => setMessagesLoading(false));
@@ -190,7 +217,7 @@ export default function Home() {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setMobileSidebarOpen(true)}
@@ -227,42 +254,46 @@ export default function Home() {
 
         <div className="flex min-h-0 flex-1">
           <main className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-              {!activeSessionId && messages.length === 0 && (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-slate-400">
-                  <div className="text-4xl" aria-hidden>
-                    💬
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div className="mx-auto w-full max-w-3xl space-y-4 p-4">
+                {!activeSessionId && messages.length === 0 && (
+                  <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-3 text-center text-slate-400">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-2xl" aria-hidden>
+                      💬
+                    </div>
+                    <p className="text-sm text-slate-500">
+                      Start a new chat, or ask a question below to begin one automatically.
+                    </p>
                   </div>
-                  <p className="text-sm">Start a new chat, or ask a question below to begin one automatically.</p>
-                </div>
-              )}
-              {messagesLoading && <p className="text-xs text-slate-400">Loading conversation…</p>}
-              {messages.map((m) => {
-                const meta = turnMeta[m.id];
-                return (
-                  <MessageBubble
-                    key={m.id}
-                    message={m}
-                    sources={meta?.sources}
-                    abstained={meta?.abstained}
-                    hasArtifact={Boolean(meta?.artifactId)}
-                    onOpenArtifact={meta?.artifactId ? () => handleOpenArtifact(meta.artifactId!) : undefined}
-                  />
-                );
-              })}
-              {sending && (
-                <div className="flex items-center gap-2 text-xs text-slate-400" role="status" aria-live="polite">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400" />
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400 [animation-delay:150ms]" />
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400 [animation-delay:300ms]" />
-                  Retrieving sources and generating a grounded answer…
-                </div>
-              )}
-              {sendError && (
-                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-                  {sendError}
-                </div>
-              )}
+                )}
+                {messagesLoading && <p className="text-xs text-slate-400">Loading conversation…</p>}
+                {messages.map((m) => {
+                  const meta = turnMeta[m.id];
+                  return (
+                    <MessageBubble
+                      key={m.id}
+                      message={m}
+                      sources={meta?.sources}
+                      abstained={meta?.abstained}
+                      hasArtifact={Boolean(meta?.artifactId)}
+                      onOpenArtifact={meta?.artifactId ? () => handleOpenArtifact(meta.artifactId!) : undefined}
+                    />
+                  );
+                })}
+                {sending && (
+                  <div className="flex items-center gap-2 pl-1 text-xs text-slate-400" role="status" aria-live="polite">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400" />
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400 [animation-delay:150ms]" />
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400 [animation-delay:300ms]" />
+                    Retrieving sources and generating a grounded answer…
+                  </div>
+                )}
+                {sendError && (
+                  <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                    {sendError}
+                  </div>
+                )}
+              </div>
             </div>
             <Composer onSend={handleSend} disabled={sending} />
           </main>
