@@ -55,10 +55,10 @@ Five tables (`backend/app/db/models.py`, migration `backend/alembic/versions/000
 - **sessions** — `id` (UUID pk), `user_id` (nullable string), `title`, `provider`, `created_at`, `updated_at`.
 - **messages** — `id`, `session_id` (FK → sessions, cascade delete), `role` (`user`/`assistant`/`system`), `content`, `message_metadata` (JSONB: intent, abstained flag, retrieval/generation latency, source list), `created_at`.
 - **transcript_documents** — `id`, `title`, `episode`, `source_url`, `published_at`, `content_hash` (unique — dedup key), `doc_metadata` (JSONB), `created_at`.
-- **transcript_chunks** — `id`, `document_id` (FK, cascade delete), `chunk_index`, `content`, `embedding` (`vector(768)`, ivfflat cosine index), `chunk_metadata` (JSONB: token count), `created_at`. Unique on `(document_id, chunk_index)`.
+- **transcript_chunks** — `id`, `document_id` (FK, cascade delete), `chunk_index`, `content`, `embedding` (`vector(768)`, exact cosine search — see "Retrieval flow" for why there's no ANN index at this dataset scale), `chunk_metadata` (JSONB: token count), `created_at`. Unique on `(document_id, chunk_index)`.
 - **artifacts** — `id`, `session_id` (FK, nullable, SET NULL on delete), `message_id` (FK, nullable, SET NULL), `artifact_type` (`markdown`/`html`/`ship30`), `title`, `content`, `artifact_metadata` (JSONB: validation warnings), `created_at`.
 
-**Cross-dialect note:** the ORM models use `sqlalchemy.types.Uuid`, a `JSON().with_variant(JSONB(), "postgresql")` wrapper, and a custom `EmbeddingVector` type decorator (`backend/app/db/types.py`) instead of Postgres-only types directly. This lets the exact same models run against SQLite for the test suite (no Docker/Postgres required to run `pytest`) while production always uses real pgvector types — the Alembic migration itself is Postgres-specific (`CREATE EXTENSION vector`, native `JSONB`, `ivfflat` index) since migrations only ever run against the real deployment target.
+**Cross-dialect note:** the ORM models use `sqlalchemy.types.Uuid`, a `JSON().with_variant(JSONB(), "postgresql")` wrapper, and a custom `EmbeddingVector` type decorator (`backend/app/db/types.py`) instead of Postgres-only types directly. This lets the exact same models run against SQLite for the test suite (no Docker/Postgres required to run `pytest`) while production always uses real pgvector types — the Alembic migration itself is Postgres-specific (`CREATE EXTENSION vector`, native `JSONB`) since migrations only ever run against the real deployment target.
 
 ## API endpoints
 
@@ -113,6 +113,8 @@ user query
 ```
 
 On any non-PostgreSQL SQLAlchemy bind (only true in the test suite), the same function transparently falls back to a pure-Python cosine-similarity scan and a substring-based keyword scorer — see `backend/app/retrieval/retriever.py`'s module docstring. Production always takes the pgvector path.
+
+**No approximate-nearest-neighbor index, by design, at this scale.** The initial migration created an `ivfflat` index (`lists = 100`); live testing found this was badly over-tuned for a ~1,455-row `transcript_chunks` table — IVFFlat's default `probes = 1` occasionally probed a near-empty cluster and returned literally zero candidates for a real, well-supported query (see `agent-transcripts/010-ivfflat-retrieval-bug.md` for the full diagnosis). Migration `0002` drops it: at this project's expected scale ("tens to low hundreds of episodes, thousands of chunks" per PRD.md), an exact sequential cosine-distance scan is both fast enough and, more importantly, cannot have this failure mode — there's no approximation to get unlucky with. Revisit this only if the corpus grows past roughly 100K+ chunks, with `lists` sized to `rows / 1000` and `probes` raised well above the default, or an HNSW index instead.
 
 ## Agent routing
 
@@ -172,4 +174,4 @@ This translation logic is centralized in two small guard functions (`guard_retri
 
 ## Testing strategy
 
-83 backend tests run against in-memory SQLite via the cross-dialect model shim described above — zero external dependencies required to run `pytest`. This covers the full service/API/agent/retrieval/ingestion/security logic. What it does *not* cover: the real pgvector `ivfflat` index's actual ANN behavior at scale, and real model output quality — both require the real Docker stack (`eval/run_eval.py` is the tool for the latter). Frontend: Vitest component tests + `tsc --noEmit` + a production `next build`.
+89 backend tests run against in-memory SQLite via the cross-dialect model shim described above — zero external dependencies required to run `pytest`. This covers the full service/API/agent/retrieval/ingestion/security logic. What it does *not* cover: real pgvector query planning and index behavior (this is exactly how a real, serious bug slipped through — see `agent-transcripts/010-ivfflat-retrieval-bug.md`: an over-tuned `ivfflat` index could return zero results for a valid query, a failure mode SQLite's Python-fallback retrieval path structurally cannot exhibit), and real model output quality — both require the real Docker stack (`eval/run_eval.py` is the tool for the latter). Frontend: Vitest component tests + `tsc --noEmit` + a production `next build`.

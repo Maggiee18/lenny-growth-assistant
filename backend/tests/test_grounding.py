@@ -7,6 +7,7 @@ pinned down as a unit behavior.
 """
 from app.agents.tools import ABSTENTION_MESSAGE, answer_from_sources
 from app.retrieval.retriever import RetrievedChunk
+from tests.conftest import FakeChatProvider
 import uuid
 
 
@@ -62,3 +63,32 @@ async def test_system_prompt_instructs_model_to_treat_transcript_as_untrusted_da
     assert system_msg.role == "system"
     assert "untrusted data" in system_msg.content.lower()
     assert "never invent" in system_msg.content.lower() or "never state a fact" in system_msg.content.lower()
+
+
+async def test_model_declining_from_irrelevant_retrieved_chunk_is_reclassified_as_abstained():
+    """Regression test for a live finding (eval/run_eval.py q6): retrieval
+    (vector or keyword fallback) can surface a chunk that clears the
+    similarity threshold on incidental lexical overlap but is not actually
+    relevant -- e.g. "stock price" matching a transcript about "price
+    disequilibrium" in AI/crypto tokens at 0.59 similarity. The model can
+    correctly decline to answer from it, but without this heuristic the
+    `abstained` flag stayed False (chunks were non-empty) and the irrelevant
+    chunk was shown to the user as if it were a real cited source."""
+    declining_provider = FakeChatProvider(
+        response="None of the available transcript excerpts address this question. "
+        "They discuss token pricing, not stock prices."
+    )
+    chunks = [_chunk(title="Unrelated Episode", content="Someone spent $1.5 million on a token.")]
+    result = await answer_from_sources(declining_provider, "What is the stock price today?", [], chunks)
+    assert result.abstained is True
+    assert result.sources == []  # don't show an irrelevant chunk as if it were a real citation
+
+
+async def test_normal_grounded_answer_is_not_misclassified_as_declined():
+    """The heuristic must not false-positive on ordinary answers that happen
+    to mention uncertainty in passing."""
+    provider = FakeChatProvider(response="Based on the excerpts, none of the tactics mentioned worked well.")
+    chunks = [_chunk()]
+    result = await answer_from_sources(provider, "What tactics failed?", [], chunks)
+    assert result.abstained is False
+    assert result.sources == chunks

@@ -32,3 +32,6 @@ Thumbs.db
 
 # --- Logs ---
 *.log
+
+# --- Eval harness output (regenerated per run, not a static asset) ---
+eval/results.json

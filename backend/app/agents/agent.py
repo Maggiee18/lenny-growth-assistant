@@ -156,9 +156,9 @@ class PodcastAgent:
         if intent == Intent.SHIP30:
             return await generate_ship30_tool(self.chat_provider, user_message, chunks)
         if intent == Intent.MARKDOWN_ARTIFACT:
-            return await generate_markdown_artifact_tool(self.chat_provider, user_message, chunks)
+            return await generate_markdown_artifact_tool(self.chat_provider, user_message, chunks, history)
         if intent == Intent.HTML_ARTIFACT:
-            return await generate_html_artifact_tool(self.chat_provider, user_message, chunks)
+            return await generate_html_artifact_tool(self.chat_provider, user_message, chunks, history)
         return await answer_from_sources(self.chat_provider, user_message, history, chunks)
 
     @staticmethod

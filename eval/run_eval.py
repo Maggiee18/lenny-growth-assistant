@@ -41,7 +41,13 @@ def word_count(markdown_text: str) -> int:
 
 def run(base_url: str) -> dict[str, Any]:
     questions = json.loads(QUESTIONS_PATH.read_text(encoding="utf-8"))
-    client = httpx.Client(base_url=base_url, timeout=120.0)
+    # Generous timeout: CPU-only Ship 30 generation (two model calls, plus a
+    # possible bounded continuation pass) has been observed taking up to ~6
+    # minutes end to end -- this must comfortably exceed that, not just the
+    # backend's own OLLAMA_TIMEOUT_SECONDS, or the harness itself times out
+    # and aborts the whole run (as happened live: a 120s client timeout here
+    # killed the run mid-Ship30-question before results.json was ever written).
+    client = httpx.Client(base_url=base_url, timeout=600.0)
 
     config = client.get("/api/config").json()
     print(f"Provider: {config['provider']} | Model: {config['model']}")
@@ -58,7 +64,14 @@ def run(base_url: str) -> dict[str, Any]:
         sessions[q["id"]] = session_id
 
         start = time.perf_counter()
-        resp = client.post(f"/api/sessions/{session_id}/messages", json={"content": q["prompt"]})
+        try:
+            resp = client.post(f"/api/sessions/{session_id}/messages", json={"content": q["prompt"]})
+        except httpx.TimeoutException as exc:
+            elapsed_ms = round((time.perf_counter() - start) * 1000, 1)
+            record = {"id": q["id"], "category": q["category"], "latency_ms": elapsed_ms, "error": f"client timeout: {exc}"}
+            results.append(record)
+            print(f"  [{q['id']}] {q['category']} -> TIMED OUT after {elapsed_ms}ms, continuing with remaining questions")
+            continue
         elapsed_ms = round((time.perf_counter() - start) * 1000, 1)
 
         record: dict[str, Any] = {"id": q["id"], "category": q["category"], "latency_ms": elapsed_ms}
@@ -100,11 +113,11 @@ def run(base_url: str) -> dict[str, Any]:
         results.append(record)
         print(f"  [{q['id']}] {q['category']} -> {json.dumps({k: v for k, v in record.items() if k not in ('id', 'category')})}")
 
-    summary = _summarize(results, config)
+    summary = _summarize(results, questions, config)
     return {"config": config, "results": results, "summary": summary}
 
 
-def _summarize(results: list[dict], config: dict) -> dict:
+def _summarize(results: list[dict], questions: list[dict], config: dict) -> dict:
     non_errored = [r for r in results if "error" not in r]
     grounded = [r for r in non_errored if r.get("abstained") is False]
     total_checks = 0
@@ -116,17 +129,27 @@ def _summarize(results: list[dict], config: dict) -> dict:
                 if value == "pass":
                     passed_checks += 1
 
+    # Bug found and fixed live: this used to check `"expect_artifact_type" in
+    # str(result_record)`, which is never true -- that key only exists on the
+    # original *question* dict, not on the result record built during the
+    # loop -- so the denominator was always 1 and the rate could exceed 100%
+    # (observed: 3.0). Fixed by looking up expectations by question id.
+    artifact_expected_ids = {q["id"] for q in questions if q.get("expect_artifact_type")}
+    results_by_id = {r["id"]: r for r in results}
+    artifact_generation_success_rate = None
+    if artifact_expected_ids:
+        succeeded = sum(
+            1 for qid in artifact_expected_ids if results_by_id.get(qid, {}).get("has_artifact")
+        )
+        artifact_generation_success_rate = round(succeeded / len(artifact_expected_ids), 2)
+
     return {
         "provider": config["provider"],
         "model": config["model"],
         "questions_run": len(results),
         "questions_errored": len(results) - len(non_errored),
         "retrieval_hit_rate": round(sum(1 for r in grounded if r.get("source_count", 0) > 0) / max(len(grounded), 1), 2),
-        "artifact_generation_success_rate": round(
-            sum(1 for r in non_errored if r.get("has_artifact")) / max(sum(1 for r in results if "expect_artifact_type" in str(r)), 1), 2
-        )
-        if any("artifact_type" in r for r in non_errored)
-        else None,
+        "artifact_generation_success_rate": artifact_generation_success_rate,
         "assertion_pass_rate": round(passed_checks / max(total_checks, 1), 2),
         "assertion_checks_total": total_checks,
         "assertion_checks_passed": passed_checks,

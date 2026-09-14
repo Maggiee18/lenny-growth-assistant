@@ -1,6 +1,12 @@
 import pytest
 
+from app.agents.tools import (
+    NO_EVIDENCE_FOR_ARTIFACT_MESSAGE,
+    generate_html_artifact_tool,
+    generate_markdown_artifact_tool,
+)
 from app.core.errors import ArtifactSanitizationError
+from app.providers.base import ChatMessage
 from app.skills.artifacts.markdown import derive_title, validate_markdown
 from app.skills.artifacts.sanitizer import sanitize_html
 
@@ -95,3 +101,49 @@ async def test_get_artifact_not_found(client):
 
     resp = await client.get(f"/api/artifacts/{random_uuid_str()}")
     assert resp.status_code == 404
+
+
+async def test_markdown_artifact_abstains_with_no_chunks_and_no_history(fake_chat_provider):
+    """Regression test for a live bug: asking for an artifact with neither
+    matching transcript evidence nor conversation history used to produce a
+    nonsense artifact literally titled "No Transcript Excerpts Provided"
+    instead of refusing. See agents/tools.py NO_EVIDENCE_FOR_ARTIFACT_MESSAGE."""
+    result = await generate_markdown_artifact_tool(fake_chat_provider, "Summarize this conversation", [], [])
+    assert result.abstained is True
+    assert result.content == NO_EVIDENCE_FOR_ARTIFACT_MESSAGE
+    assert result.artifact_markdown is None
+
+
+async def test_html_artifact_abstains_with_no_chunks_and_no_history(fake_chat_provider):
+    result = await generate_html_artifact_tool(fake_chat_provider, "Make a page about nothing", [], [])
+    assert result.abstained is True
+    assert result.content == NO_EVIDENCE_FOR_ARTIFACT_MESSAGE
+    assert result.artifact_html is None
+
+
+async def test_markdown_artifact_grounds_in_conversation_history_when_no_chunks(fake_chat_provider):
+    """"Summarize this conversation" has no transcript-shaped retrieval query,
+    but should still work when there's real prior chat to summarize."""
+    history = [
+        ChatMessage(role="user", content="What do guests say about pricing?"),
+        ChatMessage(role="assistant", content="Guests recommend anchoring price to the value metric."),
+    ]
+    result = await generate_markdown_artifact_tool(fake_chat_provider, "Summarize this conversation", [], history)
+    assert result.abstained is False
+    assert result.artifact_markdown is not None
+    # The conversation content should have been sent to the model as grounding material.
+    sent_content = fake_chat_provider.last_messages[-1].content
+    assert "value metric" in sent_content
+
+
+async def test_create_artifact_endpoint_abstains_gracefully_for_empty_session(client):
+    """/api/artifacts on a brand-new session with no messages and a topic that
+    matches no transcripts should fail with a clear validation error, not a
+    500 or a nonsense artifact."""
+    session = (await client.post("/api/sessions", json={})).json()
+    resp = await client.post(
+        "/api/artifacts",
+        json={"session_id": session["id"], "artifact_type": "markdown"},
+    )
+    assert resp.status_code == 422
+    assert "enough grounded material" in resp.json()["error"]["message"]
